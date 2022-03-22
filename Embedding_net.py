@@ -29,7 +29,7 @@ def ConvNormRelu(in_channels, out_channels, downsample=False, padding=0, batchno
 
 
 class PoseEncoderConv(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, n_frames, dim):
         super().__init__()
 
         self.net = nn.Sequential(

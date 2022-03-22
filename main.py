@@ -39,7 +39,7 @@ def main(
 
     #nn build and load checkpoint
     generator = EmbeddingNet(pose_dim, n_poses, None, None, None, mode='pose').to(device)
-    generator.load_state_dict(torch.load(f'../Gesture-Generation-from-Trimodal-Context/output/train_h36m_gesture_autoencoder_noS11_{n_poses}f/gesture_autoencoder/checkpoint_best.bin')['gen_dict'])
+    generator.load_state_dict(torch.load(f'../Gesture-Generation-from-Trimodal-Context/output/train_h36m_gesture_autoencoder_noS11_{n_poses}f/gesture_autoencoder_checkpoint_best.bin')['gen_dict'])
 
     #Build datasets 
     path = '../Gesture-Generation-from-Trimodal-Context/data/h36m/data_3d_h36m.npz'
@@ -58,8 +58,6 @@ def main(
         stds = [1,5,10] #This is not noise std!
     
     #Compute FGD between clean and noisy validation dataset
-    cov_ls, cov_lsn = np.empty((n*len(stds), 32, 32)), np.empty((n*len(stds), 32, 32))
-    mean_ls, mean_lsn = np.empty((n*len(stds), 32)), np.empty((n*len(stds), 32))
     latent_spaces_all = []
     latent_spaces_noisy_all = []
 
@@ -80,22 +78,28 @@ def main(
         
         n = len(val_dataset_noisy) if one_noise_to_all else 1
 
-        for _ in tqdm(range(n)):
+        cov_ls, cov_lsn = np.empty((n*len(stds), 32, 32)), np.empty((n*len(stds), 32, 32))
+        mean_ls, mean_lsn = np.empty((n*len(stds), 32)), np.empty((n*len(stds), 32))
 
+        for _ in tqdm(range(100)):
+
+            val_dataset_noisy = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=False, augment=False, method=method, std=std, one_noise_to_all=one_noise_to_all)
+            test_loader_noisy = DataLoader(dataset=val_dataset_noisy, batch_size=batch_size, shuffle=False, drop_last=True)
+            
             latent_spaces = compute_latent_space(test_loader, generator, variational_encoding)
             latent_spaces_noisy_gt = compute_latent_space(test_loader_noisy, generator, variational_encoding)
             latent_spaces_all.append(latent_spaces.detach().cpu().numpy())
             latent_spaces_noisy_all.append(latent_spaces_noisy_gt.detach().cpu().numpy())
+            
             fgd, mean_ls_, mean_lsn_, cov_ls_, cov_lsn_  = compute_fgd(latent_spaces, latent_spaces_noisy_gt)
             mean_ls[j], mean_lsn[j], cov_ls[j], cov_lsn[j] = mean_ls_, mean_lsn_, cov_ls_, cov_lsn_
             fgds.append(fgd)
             j = j+1
 
-        fgd_mean, fgd_std = bootstrap_fgd(np.array(fgd))
-    
 
-        print('FGD mean and std for noisy data with psnr of ', std , ':', fgd_mean.confidence_level, fgd_std.confidence_level)
 
+        fgd_mean, fgd_std = bootstrap_fgd(np.array(fgds))
+        #print('FGD mean and std for noisy data with psnr of ', std , ':', fgd_mean.confidence_interval, fgd_std.confidence_interval)
 
     #Saving into npz file 
     save_path = f'stats_{method}_one_sample' if one_noise_to_all else f'stats_{method}'
@@ -106,6 +110,7 @@ def main(
                         cov_lsn = cov_lsn,
                         latent_spaces = np.array(latent_spaces_all),
                         latent_spaces_noisy = np.array(latent_spaces_noisy_all),
-                        fgd_mean = fgd_mean.confidence_level, 
-                        fgd_std = fgd_std.confidence_level
+                        fgd = np.array(fgds)
+                        #fgd_mean = fgd_mean.confidence_interval, 
+                        #fgd_std = fgd_std.confidence_interval
                         )

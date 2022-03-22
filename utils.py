@@ -1,12 +1,24 @@
+from lib2to3.refactor import get_all_fix_names
+from dataclasses import dataclass
 import numpy as np
-import torch
+import random
 from scipy import linalg
 from scipy.stats import bootstrap
 from sklearn.preprocessing import normalize
 
+from fastai.vision.all import *
+from fastai.callback.all import *
+
+from torch.utils.data import Dataset
+import torch.nn.functional as F
+import torch
 
 dir_vec_pairs = [(0, 1, 0.26), (1, 2, 0.18), (2, 3, 0.14), (1, 4, 0.22), (4, 5, 0.36),
                  (5, 6, 0.33), (1, 7, 0.22), (7, 8, 0.36), (8, 9, 0.33)]  # adjacency and bone length
+
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 def convert_dir_vec_to_pose(vec):
     vec = np.array(vec)
@@ -55,7 +67,8 @@ def convert_pose_seq_to_dir_vec(pose):
 
 
 def calculate_latent_space_statistics(ls):
-    ls = ls.cpu().data.numpy()
+    if type(ls) is not np.ndarray:
+        ls = ls.cpu().data.numpy()
     mu = np.mean(ls, axis=0)
     sigma = np.cov(ls, rowvar = False)
     return mu, sigma
@@ -143,6 +156,82 @@ def reparameterize(mu, logvar):
 
 def bootstrap_fgd(x):
     x = (x,)
-    res_std = bootstrap(x, np.std, confidence_level=0.95, random_state = np.random.default_rng())
-    res_mean = bootstrap(x, np.mean, confidence_level=0.95, random_state = np.random.default_rng())
+    res_std = bootstrap(x, np.std, confidence_level=0.9, random_state = np.random.default_rng(),  method='BCa')
+    res_mean = bootstrap(x, np.mean, confidence_level=0.9, random_state = np.random.default_rng(),  method='BCa')
     return res_mean, res_std
+
+
+class Normalization:
+    def get_normalized_all(data):
+        #compute min and max on the dataset on all joints
+        assert data.shape[-1] == 3, "Last channel is not xyz"
+        bound={}
+        bound['max'] = torch.tensor((data[..., 0].max(), data[..., 1].max(), data[..., 2].max())) 
+        bound['min'] = torch.tensor((data[..., 0].min(), data[..., 1].min(), data[..., 2].min()))
+
+        return (data - bound['min']) / (bound['max'] - bound['min'])
+    
+    def get_normalized_joint(data):
+        assert data.shape[-1] == 3, "Last channel is not xyz"
+        data_n = torch.empty(data.shape)
+        bound = {}
+        
+        for i in range(data.shape[-2]):#n joints
+            bound[f'max_{i}'] = torch.tensor((data[..., i, 0].max(), data[..., i, 1].max(), data[..., i, 2].max()))
+            bound[f'min_{i}'] = torch.tensor((data[..., i, 0].min(), data[..., i, 1].min(), data[..., i, 2].min()))
+            
+            for o in range(data.shape[-1]):
+                data_n[...,i,o] = (data[...,i,o] - bound[f'min_{i}'][o]) / (bound[f'max_{i}'][o] - bound[f'min_{i}'][o])
+            
+        return data_n
+    
+    def get_bound_all(data):
+        bound = {}
+        bound['max'] = torch.tensor((data[..., 0].max(), data[..., 1].max(), data[..., 2].max())) 
+        bound['min'] = torch.tensor((data[..., 0].min(), data[..., 1].min(), data[..., 2].min()))
+        return bound
+
+    def get_bound_joint(data):
+        bound = {}
+        for i in range(data.shape[-2]):#n joints
+            bound[f'max_{i}'] = torch.tensor((data[..., i, 0].max(), data[..., i, 1].max(), data[..., i, 2].max()))
+            bound[f'min_{i}'] = torch.tensor((data[..., i, 0].min(), data[..., i, 1].min(), data[..., i, 2].min()))
+        return bound
+
+@dataclass
+#Callback to visualize batch as data
+class CheckBatch(Callback):
+    def __init__(self):
+        super().__init__()
+
+    def before_batch(self):
+        print(self.x.shape, self.x.dtype)
+
+class NormItem(Dataset):
+    def __init__(self,vec,bounds):
+        self.bounds = bounds
+        self.vec = vec
+
+        #Norm
+        self.vec = (self.vec - self.bounds['min']) / (self.bounds['max'] - self.bounds['min'])
+
+    def __len__(self):
+        return len(self.vec)
+
+    def __getitem__(self, i):
+        out = self.resize(self.vec[i], (28,28)).squeeze()
+        return out, out
+
+    @staticmethod
+    def resize(data, size):
+        data = torch.permute(data,(2,1,0)).unsqueeze(0)
+        return F.interpolate(data, size, mode='bilinear')
+        
+    
+class Hooks:
+    
+    def __init__(self):
+        self.ls = []
+
+    def hook(self, module, input, output):
+        self.ls.append(output)

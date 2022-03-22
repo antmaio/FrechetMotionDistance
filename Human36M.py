@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import math 
 
 import torch
 from torch.utils.data import Dataset
@@ -8,12 +9,14 @@ from torch.utils.data import Dataset
 
 from utils import *
 
+
 train_subject = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9']
 test_subject = ['S11']
+all_subject = train_subject + test_subject
 
 class Human36M(Dataset):
     """ INIT """
-    def __init__(self, path, mean_data, n_poses=34, is_train=True, augment=False, method=None, std=0, to_image=None, one_noise_to_all=False):
+    def __init__(self, path, mean_data, n_poses=34, is_train=True, augment=False, method=None, std=0, to_image=None, one_noise_to_all=False, all_subject=False):
         n_poses = n_poses
         target_joints = [1, 6, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]  # see https://github.com/kenkra/3d-pose-baseline-vmd/wiki/body
 
@@ -26,15 +29,18 @@ class Human36M(Dataset):
         self.one_noise_to_all = one_noise_to_all
         self.noise = None
         
-        if is_train:
-            subjects = train_subject
+        if all_subject:
+            subjects = train_subject + test_subject
         else:
-            subjects = test_subject
+            if is_train:
+                subjects = train_subject
+            else:
+                subjects = test_subject
             
         if self.one_noise_to_all:
-            print('One noise sample by dataset')
+            
             if self.method is not None:
-                
+                print('One noise sample by dataset')
                 if hasattr(self, self.method):
                     noise_function = getattr(self, self.method)
                     noise = noise_function(np.empty((1,10,3)), self.std)
@@ -43,7 +49,8 @@ class Human36M(Dataset):
             else:
                 assert False, "There is no noise distribution in method i.e. method is None"
         else:
-            print('One noise sample by gesture')
+            if self.method is not None:
+                print('One noise sample by gesture')
         # loading data and normalize
         frame_stride = 2
         data = np.load(path, allow_pickle=True)['positions_3d'].item()
