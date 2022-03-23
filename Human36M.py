@@ -40,7 +40,8 @@ class Human36M(Dataset):
         if self.one_noise_to_all:
             
             if self.method is not None:
-                print('One noise sample by dataset')
+                
+                #print('One noise sample by dataset')
                 if hasattr(self, self.method):
                     noise_function = getattr(self, self.method)
                     noise = noise_function(np.empty((1,10,3)), self.std)
@@ -50,7 +51,8 @@ class Human36M(Dataset):
                 assert False, "There is no noise distribution in method i.e. method is None"
         else:
             if self.method is not None:
-                print('One noise sample by gesture')
+                pass
+                #print('One noise sample by gesture')
         # loading data and normalize
         frame_stride = 2
         data = np.load(path, allow_pickle=True)['positions_3d'].item()
@@ -101,14 +103,15 @@ class Human36M(Dataset):
         else:
             if self.method is not None:
                 poses = poses.copy()
-                poses += self.noise 
+                poses += self.noise
         
         dir_vec = convert_pose_seq_to_dir_vec(poses)
         dir_vec = dir_vec.reshape(dir_vec.shape[0], -1)
-        dir_vec = dir_vec - self.mean_data
+        #dir_vec = dir_vec - self.mean_data
 
         poses = torch.from_numpy(poses).float()
         dir_vec = torch.from_numpy(dir_vec).float()
+        
         return poses, dir_vec
 
     def __len__(self):

@@ -198,6 +198,12 @@ class Normalization:
             bound[f'min_{i}'] = torch.tensor((data[..., i, 0].min(), data[..., i, 1].min(), data[..., i, 2].min()))
         return bound
 
+    def normalize(data, mean, std):
+        assert data.shape[-1] == 3, "Last channel is not xyz"
+        for c in range(data.shape[-1]):
+            data[..., c] = data[..., c] - mean[c] / std[c]
+        return data
+
 @dataclass
 #Callback to visualize batch as data
 class CheckBatch(Callback):
@@ -208,12 +214,8 @@ class CheckBatch(Callback):
         print(self.x.shape, self.x.dtype)
 
 class NormItem(Dataset):
-    def __init__(self,vec,bounds):
-        self.bounds = bounds
+    def __init__(self,vec):
         self.vec = vec
-
-        #Norm
-        self.vec = (self.vec - self.bounds['min']) / (self.bounds['max'] - self.bounds['min'])
 
     def __len__(self):
         return len(self.vec)

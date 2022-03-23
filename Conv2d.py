@@ -39,15 +39,14 @@ def main(
     loader_workers:Param("", int)=4,
     method:Param("Noise distribution", str)="gaussian_noise",
     strategy: Param("How to add noise ?", str)="gesture",
-    norm_image: Param('min max normalize poses', bool)=False,
+    norm_image: Param('min max normalize poses', bool)=False
     
 ): 
-    def get_vecs(ds):
-        v = torch.empty((len(ds), n_poses, len(mean_dir_vec) // 3, 3))  
-        for i in range(len(ds)):
-            v[i] = ds[i][1].reshape(n_poses, len(mean_dir_vec) // 3, -1)
+    def get_vecs(dl):
+        for i, (_, vec) in enumerate(dl):
+            v = vec if i == 0 else torch.cat((v,vec), 0)
         return v
-
+        
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
 
@@ -60,7 +59,7 @@ def main(
     add_layer(ae, 256, 128, 'Upsample0')
     add_layer(ae, 128, 64, 'Upsample1', out_shape=(7,7), scale=None)
     add_layer(ae, 64, 32, 'Upsample2')
-    add_layer(ae, 32, 3, 'Upsample3', act='sig')
+    add_layer(ae, 32, 3, 'Upsample3', act='tanh')
     if not training:
         ae.load_state_dict(torch.load('./models/model.pth'))
 
@@ -69,45 +68,54 @@ def main(
     path  = '../Gesture-Generation-from-Trimodal-Context/data/h36m/data_3d_h36m.npz'
     mean_dir_vec = np.squeeze(np.array(mean_dir_vec))
 
-    #training 
     if not variational_encoding:
             loss_func = F.l1_loss
 
-    bounds = {}
+    #Imagenet normalization stats
+    norm_mean = np.array([0.485,0.456,0.406])
+    norm_std = np.array([0.229, 0.224, 0.225])
 
+
+  
     if training:
-        #fastai dataloaders
-        dataset = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True)
+
+        """
+        AE Training process 
+        """
+
+        #build datasets and dataloaders
+        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True)
         train_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=True  , augment=False) 
         valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False)
-
-        '''
-        splitter = FuncSplitter(lambda o: Path(o).parent.name == 'valid')
-        root = Path('../Gesture-Generation-from-Trimodal-Context/data/gest2im/all')
-        dblock = DataBlock(blocks=(ImageBlock, ImageBlock),
-                    get_items=get_image_files,
-                    get_y=lambda x: x,
-                    splitter = splitter,
-                    item_tfms=[Resize(28)])
-
-        dls = dblock.dataloaders(root, batch_size = batch_size, num_workers=0)
-        '''
         
-        train_vecs = get_vecs(train_dataset_)
-        valid_vecs = get_vecs(valid_dataset_)
+        dataloader_ = DataLoader(dataset=dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
+        train_loader_ = DataLoader(dataset=train_dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
+        valid_loader_ = DataLoader(dataset=valid_dataset_, batch_size=batch_size, shuffle=False, drop_last=False)
 
+        
+        #get unit length dir vector
+        all_vecs = get_vecs(dataloader_)
+        train_vecs = get_vecs(train_loader_)
+        valid_vecs = get_vecs(valid_loader_)
+
+        #MinMax rescaling
+        all_vecs, train_vecs, valid_vecs = all_vecs.reshape(len(dataset_), n_poses, len(mean_dir_vec) // 3, 3), train_vecs.reshape(len(train_dataset_), n_poses, len(mean_dir_vec) // 3, 3), valid_vecs.reshape(len(valid_dataset_), n_poses, len(mean_dir_vec) // 3, 3)
+        bounds = Normalization.get_bound_all(all_vecs)
+        train_vecs, valid_vecs = (train_vecs - bounds['min']) / (bounds['max'] - bounds['min']), (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
+
+        #Normalization if pretrained on imagenet with imagenet stats
         if norm_image:
-            bounds = Normalization.get_bound_all(get_vecs(dataset))
-        else:
-            bounds['max'] = 1 
-            bounds['min'] = 0
+            train_vecs = Normalization.normalize(train_vecs.reshape(len(train_dataset_), n_poses, len(mean_dir_vec) // 3, 3), norm_mean, norm_std)
+            valid_vecs = Normalization.normalize(valid_vecs.reshape(len(valid_dataset_), n_poses, len(mean_dir_vec) // 3, 3), norm_mean, norm_std)
 
-        train_dataset = NormItem(train_vecs, bounds)
-        valid_dataset = NormItem(valid_vecs, bounds)
+        #Create new dataset and dataloaders
+        train_dataset = NormItem(train_vecs)
+        valid_dataset = NormItem(valid_vecs)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
         dls = DataLoaders(train_loader, valid_loader)
 
+        #Training and save model
         learn = Learner(dls, ae, loss_func = loss_func, metrics=[mae])
         suggested_lr = learn.lr_find(stop_div=False, num_it=200)
         print('Training with suggested lr = ', suggested_lr)
@@ -116,9 +124,18 @@ def main(
         cbs.append(SaveModelCallback())
         cbs.append(CSVLogger(fname='models/log.csv'))
         learn.fit_one_cycle(epochs,lr_max=suggested_lr, cbs=cbs)
-    
+
+        learn.recorder.plot_losses()
+        #learn.show_results(dl_idx=1)
+
+
     #Evaluating FGD
     else:
+
+        
+        """
+        FGD Measurment process 
+        """
 
         latent_space = []
         
@@ -139,7 +156,14 @@ def main(
 
         dataset = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=True, augment=False, all_subject=True) 
         valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False)
+        valid_loader = DataLoader(dataset=valid_dataset_, batch_size=batch_size, shuffle=False, drop_last=True)
 
+
+        bounds = {}
+        print(vecs.max(), vecs.min())
+
+        import pdb; pdb.set_trace()
+        '''
         valid_vecs = get_vecs(valid_dataset_)
         if norm_image:
             bounds = Normalization.get_bound_all(get_vecs(dataset))
@@ -149,18 +173,18 @@ def main(
 
         print(bounds)
         import pdb; pdb.set_trace()
-        
+
         valid_dataset = NormItem(valid_vecs, bounds)
         valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+        '''
+        
         dls = DataLoaders(None, valid_loader)
-
     
         learn = Learner(dls, ae, loss_func = loss_func, metrics=[mae])
         handle = learn.model.CodeIn.register_forward_hook(hook)
         _ = learn.get_preds(1)
         handle.remove()
         latent_space = torch.cat(latent_space).detach().cpu().numpy().squeeze()
-        
         
         n = len(valid_dataset) if one_noise_to_all else 50
         fgds = np.empty((n, len(stds)))

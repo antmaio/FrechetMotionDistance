@@ -30,6 +30,9 @@ def get_upSamp(feat_in,feat_out, out_shape=None, scale=2, act='relu'):
     elif act == 'sig':
         act_f = nn.Sigmoid()
         layer.add_module('Sigmoid',act_f)
+    elif act == 'tanh':
+        act_f = nn.Tanh()
+        layer.add_module('Tanh', act_f)
     return layer
 
 def add_layer(m,feat_in,feat_out,name,out_shape=None,scale=2,act='relu'):
