@@ -201,7 +201,7 @@ class Normalization:
     def normalize(data, mean, std):
         assert data.shape[-1] == 3, "Last channel is not xyz"
         for c in range(data.shape[-1]):
-            data[..., c] = data[..., c] - mean[c] / std[c]
+            data[..., c] = (data[..., c] - mean[c]) / std[c]
         return data
 
 @dataclass
@@ -214,15 +214,22 @@ class CheckBatch(Callback):
         print(self.x.shape, self.x.dtype)
 
 class NormItem(Dataset):
-    def __init__(self,vec):
+    def __init__(self, vec, mean=None, std=None):
         self.vec = vec
+        self.mean = torch.tensor(mean).float() if mean is not None else None
+        self.std = torch.tensor(std).float() if std is not None else None
 
     def __len__(self):
         return len(self.vec)
 
     def __getitem__(self, i):
-        out = self.resize(self.vec[i], (28,28)).squeeze()
-        return out, out
+        resized_data = self.resize(self.vec[i], (28,28)).squeeze()
+        if self.mean is not None:
+            in_data = (resized_data - self.mean[:, None, None]) / self.std[:, None, None]
+        else:
+            in_data = resized_data
+        out_data = resized_data
+        return in_data, out_data
 
     @staticmethod
     def resize(data, size):

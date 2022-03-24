@@ -59,7 +59,7 @@ def main(
     add_layer(ae, 256, 128, 'Upsample0')
     add_layer(ae, 128, 64, 'Upsample1', out_shape=(7,7), scale=None)
     add_layer(ae, 64, 32, 'Upsample2')
-    add_layer(ae, 32, 3, 'Upsample3', act='tanh')
+    add_layer(ae, 32, 3, 'Upsample3', act='sig')
     if not training:
         ae.load_state_dict(torch.load('./models/model.pth'))
 
@@ -103,14 +103,9 @@ def main(
         bounds = Normalization.get_bound_all(all_vecs)
         train_vecs, valid_vecs = (train_vecs - bounds['min']) / (bounds['max'] - bounds['min']), (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
 
-        #Normalization if pretrained on imagenet with imagenet stats
-        if norm_image:
-            train_vecs = Normalization.normalize(train_vecs.reshape(len(train_dataset_), n_poses, len(mean_dir_vec) // 3, 3), norm_mean, norm_std)
-            valid_vecs = Normalization.normalize(valid_vecs.reshape(len(valid_dataset_), n_poses, len(mean_dir_vec) // 3, 3), norm_mean, norm_std)
-
         #Create new dataset and dataloaders
-        train_dataset = NormItem(train_vecs)
-        valid_dataset = NormItem(valid_vecs)
+        train_dataset = NormItem(train_vecs, norm_mean, norm_std) if norm_image else NormItem(train_vecs)
+        valid_dataset = NormItem(valid_vecs, norm_mean, norm_std) if norm_image else NormItem(valid_vecs)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
         dls = DataLoaders(train_loader, valid_loader)
