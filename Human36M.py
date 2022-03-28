@@ -107,7 +107,7 @@ class Human36M(Dataset):
         
         dir_vec = convert_pose_seq_to_dir_vec(poses)
         dir_vec = dir_vec.reshape(dir_vec.shape[0], -1)
-        #dir_vec = dir_vec - self.mean_data
+        dir_vec = dir_vec - self.mean_data
 
         poses = torch.from_numpy(poses).float()
         dir_vec = torch.from_numpy(dir_vec).float()

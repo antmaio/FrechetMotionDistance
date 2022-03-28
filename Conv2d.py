@@ -120,21 +120,17 @@ def main(
         cbs.append(CSVLogger(fname='models/log.csv'))
         learn.fit_one_cycle(epochs,lr_max=suggested_lr, cbs=cbs)
 
-        learn.recorder.plot_losses()
+        #learn.recorder.plot_losses()
         #learn.show_results(dl_idx=1)
 
-
-    #Evaluating FGD
     else:
 
-        
         """
         FGD Measurment process 
         """
 
         latent_space = []
         
-
         def hook(module, input, output):
             latent_space.append(output)
         def hookn(module, input, output):
@@ -148,8 +144,7 @@ def main(
             one_noise_to_all = False
         elif strategy == 'dataset':
             one_noise_to_all = True
-
-        dataset = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=True, augment=False, all_subject=True) 
+        
         valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False)
         valid_loader = DataLoader(dataset=valid_dataset_, batch_size=batch_size, shuffle=False, drop_last=True)
 

@@ -63,10 +63,12 @@ def main(
     latent_spaces_noisy_all = []
 
     j = 0
-
-    ### Only for testing here : std = 0.1 ** 0.5
-    stds = [0.1 ** 0.5]
+    n = 100
+    stds = [0.001 ** 0.5, 0.002 ** 0.5, 0.003 ** 0.5, 0.01 ** 0.5, 0.1 ** 0.5]
+    fgd_means, fgd_stds = [], []
+    
     for std in stds:
+
         fgds = []
 
         if strategy == 'gesture':
@@ -74,71 +76,34 @@ def main(
         elif strategy == 'dataset':
             one_noise_to_all = True
 
-        val_dataset_noisy = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=False, augment=False, method=method, std=std, one_noise_to_all=one_noise_to_all)
-        #test_loader_noisy = DataLoader(dataset=val_dataset_noisy, batch_size=batch_size, shuffle=False, drop_last=True)
-        
-        n = len(val_dataset_noisy) if one_noise_to_all else 1
-
         cov_ls, cov_lsn = np.empty((n*len(stds), 32, 32)), np.empty((n*len(stds), 32, 32))
         mean_ls, mean_lsn = np.empty((n*len(stds), 32)), np.empty((n*len(stds), 32))
+        
+        for _ in tqdm(range(n)):
 
-        vecs = []
-
-        for _ in range(1):
+            #Compute datasets and dataloaders
             val_dataset_noisy = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=False, augment=False, method=method, std=std, one_noise_to_all=one_noise_to_all)
             test_loader_noisy = DataLoader(dataset=val_dataset_noisy, batch_size=batch_size, shuffle=False, drop_last=True)
 
             val_dataset = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=False, augment=False, method=None)
             test_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
 
+            #Extract latent spaces ground truth and noisy
+            latent_spaces = compute_latent_space(test_loader, generator, variational_encoding)
+            latent_spaces_noisy_gt = compute_latent_space(test_loader_noisy, generator, variational_encoding)
+            latent_spaces_all.append(latent_spaces.detach().cpu().numpy())
+            latent_spaces_noisy_all.append(latent_spaces_noisy_gt.detach().cpu().numpy())
+            
+            #Compute statistics and FGDs
+            fgd, mean_ls_, mean_lsn_, cov_ls_, cov_lsn_  = compute_fgd(latent_spaces, latent_spaces_noisy_gt)
+            mean_ls[j], mean_lsn[j], cov_ls[j], cov_lsn[j] = mean_ls_, mean_lsn_, cov_ls_, cov_lsn_
+            fgds.append(fgd)
+            j = j+1
 
-            _, vecn = next(iter(test_loader_noisy))
-            _, vec = next(iter(test_loader))
-            #for i, (_,_,noise) in enumerate(test_loader_noisy):
-                #noises.append(noise)
-                #print(noise.mean(), noise.std())
-                #import pdb; pdb.set_trace()
-
-            v = vec[0].permute(1,0) 
-            vn = vecn[0].permute(1,0)
-
-            print(v.var(), vn.var())
-            plt.imshow(np.cov(v), vmin=-0.1, vmax=0.1 )
-            #plt.pcolor(X, Y, f(data), vmin=-4, vmax=4)
-            plt.colorbar()
-            plt.title('gt')
-
-            plt.figure()
-
-            plt.imshow(np.cov(vn),vmin=-0.1, vmax=0.1)
-            plt.title('n')
-            plt.colorbar()
-            plt.show()
-            #vecs.append(vec.numpy())
-        
-        #vecs = np.array(vecs)
-        
-        '''
-        print(vecs.mean(), vecs.std(), vecs.shape, vecs[0,0,0].shape)
-        plt.imshow(np.cov(vecs[0,0,0]))
-        plt.colorbar()
-        plt.show()
-        #import pdb; pdb.set_trace()
-        '''
-
-        '''
-        latent_spaces = compute_latent_space(test_loader, generator, variational_encoding)
-        latent_spaces_noisy_gt = compute_latent_space(test_loader_noisy, generator, variational_encoding)
-        latent_spaces_all.append(latent_spaces.detach().cpu().numpy())
-        latent_spaces_noisy_all.append(latent_spaces_noisy_gt.detach().cpu().numpy())
-        
-        fgd, mean_ls_, mean_lsn_, cov_ls_, cov_lsn_  = compute_fgd(latent_spaces, latent_spaces_noisy_gt)
-        mean_ls[j], mean_lsn[j], cov_ls[j], cov_lsn[j] = mean_ls_, mean_lsn_, cov_ls_, cov_lsn_
-        fgds.append(fgd)
-        j = j+1
-        '''
-
+        #Bootstraping FGDs
         fgd_mean, fgd_std = bootstrap_fgd(np.array(fgds))
+        fgd_means.append(fgd_mean.confidence_interval), fgd_stds.append(fgd_std.confidence_interval)
+        
         print('FGD mean and std for noisy data with psnr of ', std , ':', fgd_mean.confidence_interval, fgd_std.confidence_interval)
 
     #Saving into npz file 
@@ -150,7 +115,7 @@ def main(
                         cov_lsn = cov_lsn,
                         latent_spaces = np.array(latent_spaces_all),
                         latent_spaces_noisy = np.array(latent_spaces_noisy_all),
-                        fgd = np.array(fgds)
-                        #fgd_mean = fgd_mean.confidence_interval, 
-                        #fgd_std = fgd_std.confidence_interval
+                        fgd = np.array(fgds),
+                        fgd_mean = fgd_means,
+                        fgd_std = fgd_stds
                         )
