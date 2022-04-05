@@ -16,9 +16,10 @@ all_subject = train_subject + test_subject
 
 class Human36M(Dataset):
     """ INIT """
-    def __init__(self, path, mean_data, n_poses=34, is_train=True, augment=False, method=None, std=0, to_image=None, one_noise_to_all=False, all_subject=False):
+    def __init__(self, path, mean_data, n_poses=34, is_train=True, augment=False, method=None, std=0, norm_mean=True, one_noise_to_all=False, all_joints=False, all_subject=False):
         n_poses = n_poses
-        target_joints = [1, 6, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]  # see https://github.com/kenkra/3d-pose-baseline-vmd/wiki/body
+        if not all_joints:
+            target_joints = [1, 6, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]  # see https://github.com/kenkra/3d-pose-baseline-vmd/wiki/body
 
         self.method = method
         self.std = std
@@ -28,6 +29,8 @@ class Human36M(Dataset):
         self.data = []
         self.one_noise_to_all = one_noise_to_all
         self.noise = None
+        self.norm_mean = norm_mean
+        self.all_joints = all_joints
         
         if all_subject:
             subjects = train_subject + test_subject
@@ -61,7 +64,8 @@ class Human36M(Dataset):
                 continue
 
             for action_name, positions in actions.items():
-                positions = positions[:, target_joints]
+                if not all_joints:
+                    positions = positions[:, target_joints]
                 positions = self.normalize(positions)
                 for f in range(0, len(positions), 10):
                     if f+n_poses*frame_stride > len(positions):
@@ -107,7 +111,8 @@ class Human36M(Dataset):
         
         dir_vec = convert_pose_seq_to_dir_vec(poses)
         dir_vec = dir_vec.reshape(dir_vec.shape[0], -1)
-        dir_vec = dir_vec - self.mean_data
+        if self.norm_mean:
+            dir_vec = dir_vec - self.mean_data
 
         poses = torch.from_numpy(poses).float()
         dir_vec = torch.from_numpy(dir_vec).float()
@@ -137,7 +142,9 @@ class Human36M(Dataset):
             rot = self.rotation_matrix([0, 1, 0], angle)
             data[f] = np.matmul(data[f], rot)
 
-        data = data[:, 2:]  # exclude hip joints
+        if not self.all_joints:
+            data = data[:, 2:]  # exclude hip joints
+
         return data
 
     @staticmethod
