@@ -25,7 +25,7 @@ def main(
     batch_size:Param("" ,int)=128,
     training:Param("set to true to train the network with ground truth data", bool)=False,
     n_poses:Param("", int)=34,
-    method:Param("Noise distribution", str)="gaussian_noise",
+    method:Param("Noise distribution", str)="saltandpepper_noise",
     strategy: Param("How to add noise ?", str)="gesture",
     norm_image: Param('min max normalize poses', bool)=False
     
@@ -141,12 +141,12 @@ def main(
         elif strategy == 'dataset':
             one_noise_to_all = True
         
-        valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False)
+        valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, norm_mean=False)
         valid_loader_ = DataLoader(dataset=valid_dataset_, batch_size=batch_size, shuffle=False, drop_last=False)
         valid_vecs = get_vecs(valid_loader_)
 
         #MinMax rescaling
-        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True)
+        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True, norm_mean=False)
         dataloader_ = DataLoader(dataset=dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
         all_vecs = get_vecs(dataloader_)
         bounds = Normalization.get_bound_all(all_vecs)
@@ -177,7 +177,7 @@ def main(
             
                 latent_space_n = []
 
-                valid_dataset_noisy_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, method=method, std=std, one_noise_to_all=one_noise_to_all)
+                valid_dataset_noisy_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, method=method, std=std, norm_mean=False, one_noise_to_all=one_noise_to_all)
                 valid_loader_noisy_ = DataLoader(dataset=valid_dataset_noisy_, batch_size=batch_size, shuffle=False, drop_last=False)
                 valid_vecs_noisy = get_vecs(valid_loader_noisy_)
 
