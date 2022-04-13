@@ -13,12 +13,37 @@ from torch.utils.data import Dataset
 import torch.nn.functional as F
 import torch
 
-dir_vec_pairs = [(0, 1, 0.26), (1, 2, 0.18), (2, 3, 0.14), (1, 4, 0.22), (4, 5, 0.36),
-                 (5, 6, 0.33), (1, 7, 0.22), (7, 8, 0.36), (8, 9, 0.33)]  # adjacency and bone length
+motion = True
+if not motion:
+    dir_vec_pairs = [(0, 1, 0.26),
+                    (1, 2, 0.18), 
+                    (2, 3, 0.14), 
+                    (1, 4, 0.22), 
+                    (4, 5, 0.36),
+                    (5, 6, 0.33), 
+                    (1, 7, 0.22), 
+                    (7, 8, 0.36), 
+                    (8, 9, 0.33)]  # adjacency and bone length
 
+else:
+    dir_vec_pairs = [(0,1),
+                    (0,4), 
+                    (1,2), 
+                    (2,3), 
+                    (4,5),
+                    (5,6), 
+                    (0,7), 
+                    (7,8), 
+                    (8,9),
+                    (9,10),
+                    (8,11),
+                    (11,12),
+                    (12,13),
+                    (8,14),
+                    (14,15),
+                    (15,16)]  # adjacency and bone length
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 def convert_dir_vec_to_pose(vec):
     vec = np.array(vec)
@@ -27,15 +52,18 @@ def convert_dir_vec_to_pose(vec):
         vec = vec.reshape(vec.shape[:-1] + (-1, 3))
 
     if len(vec.shape) == 2:
-        joint_pos = np.zeros((10, 3))
+        njoints = len(vec) + 1
+        joint_pos = np.zeros((njoints, 3))
         for j, pair in enumerate(dir_vec_pairs):
             joint_pos[pair[1]] = joint_pos[pair[0]] + pair[2] * vec[j]
     elif len(vec.shape) == 3:
-        joint_pos = np.zeros((vec.shape[0], 10, 3))
+        njoints = vec.shape[1] + 1
+        joint_pos = np.zeros((vec.shape[0], njoints, 3))
         for j, pair in enumerate(dir_vec_pairs):
             joint_pos[:, pair[1]] = joint_pos[:, pair[0]] + pair[2] * vec[:, j]
-    elif len(vec.shape) == 4:  # (batch, seq, 9, 3)
-        joint_pos = np.zeros((vec.shape[0], vec.shape[1], 10, 3))
+    elif len(vec.shape) == 4:  # (batch, seq, ndir, 3)
+        njoints = vec.shape[2] + 1
+        joint_pos = np.zeros((vec.shape[0], vec.shape[1], njoints, 3))
         for j, pair in enumerate(dir_vec_pairs):
             joint_pos[:, :, pair[1]] = joint_pos[:, :, pair[0]] + pair[2] * vec[:, :, j]
     else:

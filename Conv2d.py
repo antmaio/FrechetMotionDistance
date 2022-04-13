@@ -25,9 +25,10 @@ def main(
     batch_size:Param("" ,int)=128,
     training:Param("set to true to train the network with ground truth data", bool)=False,
     n_poses:Param("", int)=34,
-    method:Param("Noise distribution", str)="saltandpepper_noise",
+    method:Param("Noise distribution", str)="gaussian_noise",
     strategy: Param("How to add noise ?", str)="gesture",
-    norm_image: Param('min max normalize poses', bool)=False
+    norm_image: Param('min max normalize poses', bool)=False,
+    all_joints: Param('Evaluate motion or gesture', bool) = False,
     
 ): 
     def get_vecs(dl):
@@ -49,7 +50,8 @@ def main(
     add_layer(ae, 64, 32, 'Upsample2')
     add_layer(ae, 32, 3, 'Upsample3', act='sig')
     if not training:
-        ae.load_state_dict(torch.load(f'./models/model{n_poses}.pth'))
+        loadpth = f'./models/model{n_poses}_motion.pth' if all_joints else f'./models/model{n_poses}.pth'
+        ae.load_state_dict(torch.load(loadpth))
 
 
     #Build datasets
@@ -70,9 +72,9 @@ def main(
         """
 
         #build datasets and dataloaders
-        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True, norm_mean=False)
-        train_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=True  , augment=False, norm_mean=False) 
-        valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, norm_mean=False)
+        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True, norm_mean=False, all_joints=all_joints)
+        train_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train=True  , augment=False, norm_mean=False, all_joints=all_joints)  
+        valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, norm_mean=False, all_joints=all_joints)
         
         dataloader_ = DataLoader(dataset=dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
         train_loader_ = DataLoader(dataset=train_dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
@@ -84,8 +86,10 @@ def main(
         train_vecs = get_vecs(train_loader_)
         valid_vecs = get_vecs(valid_loader_)
 
+        n_joints = train_vecs.shape[2] // 3
+
         #MinMax rescaling
-        all_vecs, train_vecs, valid_vecs = all_vecs.reshape(len(dataset_), n_poses, len(mean_dir_vec) // 3, 3), train_vecs.reshape(len(train_dataset_), n_poses, len(mean_dir_vec) // 3, 3), valid_vecs.reshape(len(valid_dataset_), n_poses, len(mean_dir_vec) // 3, 3)
+        all_vecs, train_vecs, valid_vecs = all_vecs.reshape(len(dataset_), n_poses, n_joints, 3), train_vecs.reshape(len(train_dataset_), n_poses, n_joints, 3), valid_vecs.reshape(len(valid_dataset_), n_poses, n_joints, 3)
         bounds = Normalization.get_bound_all(all_vecs)
         train_vecs, valid_vecs = (train_vecs - bounds['min']) / (bounds['max'] - bounds['min']), (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
 
@@ -102,7 +106,11 @@ def main(
         print('Training with suggested lr = ', suggested_lr)
         print('Validation loss before fit : ', learn.validate()[0])
         cbs = []
-        cbs.append(SaveModelCallback(fname=f'model{n_poses}'))
+        if all_joints:
+            savepth = f'model{n_poses}_motion'
+        else:
+            savepth = f'model{n_poses}'
+        cbs.append(SaveModelCallback(fname=savepth))
         cbs.append(CSVLogger(fname='models/log.csv'))
         learn.fit_one_cycle(epochs,lr_max=suggested_lr, cbs=cbs)
 
@@ -141,17 +149,18 @@ def main(
         elif strategy == 'dataset':
             one_noise_to_all = True
         
-        valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, norm_mean=False)
+        valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, norm_mean=False, all_joints=all_joints)
         valid_loader_ = DataLoader(dataset=valid_dataset_, batch_size=batch_size, shuffle=False, drop_last=False)
         valid_vecs = get_vecs(valid_loader_)
 
         #MinMax rescaling
-        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True, norm_mean=False)
+        dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True, norm_mean=False, all_joints=all_joints)
         dataloader_ = DataLoader(dataset=dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
         all_vecs = get_vecs(dataloader_)
         bounds = Normalization.get_bound_all(all_vecs)
 
-        valid_vecs = valid_vecs.reshape(len(valid_dataset_), n_poses, len(mean_dir_vec) // 3, 3)
+        n_joints = valid_vecs.shape[2] // 3
+        valid_vecs = valid_vecs.reshape(len(valid_dataset_), n_poses, n_joints, 3)
         valid_vecs = (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
         
         #Create new dataset and dataloaders with normalized data
@@ -177,11 +186,11 @@ def main(
             
                 latent_space_n = []
 
-                valid_dataset_noisy_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, method=method, std=std, norm_mean=False, one_noise_to_all=one_noise_to_all)
+                valid_dataset_noisy_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, method=method, std=std, norm_mean=False, one_noise_to_all=one_noise_to_all, all_joints=all_joints)
                 valid_loader_noisy_ = DataLoader(dataset=valid_dataset_noisy_, batch_size=batch_size, shuffle=False, drop_last=False)
                 valid_vecs_noisy = get_vecs(valid_loader_noisy_)
 
-                valid_vecs_noisy = valid_vecs_noisy.reshape(len(valid_dataset_), n_poses, len(mean_dir_vec) // 3, 3)
+                valid_vecs_noisy = valid_vecs_noisy.reshape(len(valid_dataset_), n_poses, n_joints, 3)
                 valid_vecs_noisy = (valid_vecs_noisy - bounds['min']) / (bounds['max'] - bounds['min'])
 
                 valid_dataset_noisy = NormItem(valid_vecs_noisy, norm_mean, norm_std) if norm_image else NormItem(valid_vecs_noisy)
@@ -204,7 +213,8 @@ def main(
                 fgds[k,i] = fgd[0]
         
         print(f'fgds with method {method} with n poses = ', n_poses,  fgds.mean(axis=0), fgds.std(axis=0))
-        np.savez_compressed(f'./evaluation/fgd_{n_poses}_{method}', mean=np.array(fgds.mean(axis=0)), std=np.array(fgds.std(axis=0)))
+        savepth = f'./evaluation/fgd_{n_poses}_{method}_motion' if all_joints else f'./evaluation/fgd_{n_poses}_{method}'
+        np.savez_compressed(savepth, mean=np.array(fgds.mean(axis=0)), std=np.array(fgds.std(axis=0)))
 
 
         #print(torch.cat(latent_space).cpu().detach().numpy().squeeze().shape)

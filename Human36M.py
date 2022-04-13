@@ -20,7 +20,10 @@ class Human36M(Dataset):
         n_poses = n_poses
         if not all_joints:
             target_joints = [1, 6, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]  # see https://github.com/kenkra/3d-pose-baseline-vmd/wiki/body
+        else:
+            target_joints = [0, 1, 2, 3, 6, 7, 8, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]  # see https://github.com/kenkra/3d-pose-baseline-vmd/wiki/body
 
+        self.target_joints = target_joints
         self.method = method
         self.std = std
         self.is_train = is_train
@@ -64,9 +67,10 @@ class Human36M(Dataset):
                 continue
 
             for action_name, positions in actions.items():
-                if not all_joints:
-                    positions = positions[:, target_joints]
+                positions = positions[:, target_joints]
+                
                 positions = self.normalize(positions)
+
                 for f in range(0, len(positions), 10):
                     if f+n_poses*frame_stride > len(positions):
                         break
@@ -75,8 +79,9 @@ class Human36M(Dataset):
               
     def __getitem__(self, index):
         poses = self.data[index]
-        dir_vec = convert_pose_seq_to_dir_vec(poses)
-        poses = convert_dir_vec_to_pose(dir_vec)
+        if not self.all_joints:
+            dir_vec = convert_pose_seq_to_dir_vec(poses)
+            poses = convert_dir_vec_to_pose(dir_vec)
                 
         '''Noise for data augmentation'''
         if self.augment:  # data augmentation by adding gaussian noises on joints coordinates            
@@ -110,13 +115,13 @@ class Human36M(Dataset):
                 poses += self.noise
         
         dir_vec = convert_pose_seq_to_dir_vec(poses)
+
         dir_vec = dir_vec.reshape(dir_vec.shape[0], -1)
         if self.norm_mean:
             dir_vec = dir_vec - self.mean_data
 
         poses = torch.from_numpy(poses).float()
         dir_vec = torch.from_numpy(dir_vec).float()
-        
         return poses, dir_vec
 
     def __len__(self):
@@ -124,15 +129,22 @@ class Human36M(Dataset):
 
     def normalize(self, data):
 
+        if not self.all_joints:
+            hips_idx =  [0,1]
+            root_idx = 2 #spine
+        else:
+            hips_idx = [1, 4]
+            root_idx = 0 #central hip
+
         # pose normalization
         for f in range(data.shape[0]):
-            data[f, :] -= data[f, 2]
+            data[f, :] -= data[f, root_idx]
             data[f, :, (0, 1, 2)] = data[f, :, (0, 2, 1)]  # xy exchange
             data[f, :, 1] = -data[f, :, 1]  # invert y
 
         # frontalize based on hip joints
         for f in range(data.shape[0]):
-            hip_vec = data[f, 1] - data[f, 0]
+            hip_vec = data[f, hips_idx[1]] - data[f, hips_idx[0]]
             angle = np.pi - np.math.atan2(hip_vec[2], hip_vec[0])  # angles on XZ plane
             if 180 > np.rad2deg(angle) > 0:
                 pass
