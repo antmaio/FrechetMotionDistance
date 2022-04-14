@@ -157,9 +157,10 @@ def main(
         dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, augment=False, all_subject=True, norm_mean=False, all_joints=all_joints)
         dataloader_ = DataLoader(dataset=dataset_, batch_size=batch_size, shuffle=True, drop_last=False)
         all_vecs = get_vecs(dataloader_)
-        bounds = Normalization.get_bound_all(all_vecs)
-
         n_joints = valid_vecs.shape[2] // 3
+        all_vecs = all_vecs.reshape(len(dataset_), n_poses, n_joints, 3)
+        bounds = Normalization.get_bound_all(all_vecs)
+        
         valid_vecs = valid_vecs.reshape(len(valid_dataset_), n_poses, n_joints, 3)
         valid_vecs = (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
         
