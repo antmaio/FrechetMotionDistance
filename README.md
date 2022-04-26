@@ -1,8 +1,12 @@
 # FrechetGestureDistance-Exploration
-Fréchet Gesture Distance proposed by [1] exploration and eventual improvment
+This repository is related to the Fréchet Motion Distance. The FMD measures the distance between the distribution of a ground truth and synthetic motion dataset. It is inspired by the Fréchet Gesture Distance proposed by [1].
 
+## Requirements
 
-##  References
+## Usage
+To train the network
+
+## References
 [1]
 ```
 @article{Yoon2020Speech,
