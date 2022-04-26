@@ -4,7 +4,14 @@ This repository is related to the Fréchet Motion Distance. The FMD measures the
 ## Requirements
 
 ## Usage
-To train the network
+To train the network with 34-frames motion using pretrained Enocder with Imagenet
+```
+python Conv2d.py --norm_image --training --n_poses 34 --all_joints
+```
+To evaluate, just remove the training flag
+```
+python Conv2d.py --norm_image --n_poses 34 --all_joints
+```
 
 ## References
 [1]
