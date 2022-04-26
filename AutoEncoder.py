@@ -1,6 +1,10 @@
+"""
+This code is freely inspired by https://alanbertl.com/autoencoder-with-fast-ai/ 
+"""
+
 import torch.nn as nn
 import torch
-import os 
+
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -38,7 +42,8 @@ def get_upSamp(feat_in,feat_out, out_shape=None, scale=2, act='relu'):
 def add_layer(m,feat_in,feat_out,name,out_shape=None,scale=2,act='relu'):
     upSamp = get_upSamp(feat_in,feat_out,out_shape=out_shape,scale=scale,act=act)
     m.add_module(name,upSamp)
-    
+
+''' 
 def save_onnx(path, name, model):
     
     if not os.path.exists(path):
@@ -51,3 +56,4 @@ def save_onnx(path, name, model):
                      do_constant_folding=True,
                      input_names = ['input'], 
                      output_names = ['output'])
+'''

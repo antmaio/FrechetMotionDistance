@@ -3,3 +3,9 @@
 /stats_gaussian_noise_one_sample.npz
 /evaluation
 /temp.py
+/utils_.py
+/FGD_Conv2d.ipynb
+/FGD_Conv1d.ipynb
+/main.py
+/Embedding_net.py
+/TED_Dataset.ipynb

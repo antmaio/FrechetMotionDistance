@@ -1,21 +1,14 @@
-from lib2to3.refactor import get_all_fix_names
-from dataclasses import dataclass
-import numpy as np
-import random
-from scipy import linalg
-from scipy.stats import bootstrap
+import numpy as np 
 from sklearn.preprocessing import normalize
-
-from fastai.vision.all import *
-from fastai.callback.all import *
+from scipy import linalg
 
 from torch.utils.data import Dataset
 import torch.nn.functional as F
 import torch
 
-motion = True
-if not motion:
-    dir_vec_pairs = [(0, 1, 0.26),
+def get_dir_vec_pairs(is_motion):
+    if not is_motion:
+        dir_vec_pairs = [(0, 1, 0.26),
                     (1, 2, 0.18), 
                     (2, 3, 0.14), 
                     (1, 4, 0.22), 
@@ -24,28 +17,28 @@ if not motion:
                     (1, 7, 0.22), 
                     (7, 8, 0.36), 
                     (8, 9, 0.33)]  # adjacency and bone length
+    else:
+        dir_vec_pairs = [(0,1),
+            (0,4), 
+            (1,2), 
+            (2,3), 
+            (4,5),
+            (5,6), 
+            (0,7), 
+            (7,8), 
+            (8,9),
+            (9,10),
+            (8,11),
+            (11,12),
+            (12,13),
+            (8,14),
+            (14,15),
+            (15,16)]  # adjacency and bone length
+    return dir_vec_pairs
 
-else:
-    dir_vec_pairs = [(0,1),
-                    (0,4), 
-                    (1,2), 
-                    (2,3), 
-                    (4,5),
-                    (5,6), 
-                    (0,7), 
-                    (7,8), 
-                    (8,9),
-                    (9,10),
-                    (8,11),
-                    (11,12),
-                    (12,13),
-                    (8,14),
-                    (14,15),
-                    (15,16)]  # adjacency and bone length
+def convert_dir_vec_to_pose(vec, is_motion):
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-def convert_dir_vec_to_pose(vec):
+    dir_vec_pairs = get_dir_vec_pairs(is_motion)
     vec = np.array(vec)
 
     if vec.shape[-1] != 3:
@@ -71,8 +64,9 @@ def convert_dir_vec_to_pose(vec):
 
     return joint_pos
 
+def convert_pose_seq_to_dir_vec(pose, is_motion):
 
-def convert_pose_seq_to_dir_vec(pose):
+    dir_vec_pairs = get_dir_vec_pairs(is_motion)
     if pose.shape[-1] != 3:
         pose = pose.reshape(pose.shape[:-1] + (-1, 3))
 
@@ -93,6 +87,9 @@ def convert_pose_seq_to_dir_vec(pose):
 
     return dir_vec
 
+''' 
+Fréchet distance computation
+'''
 
 def calculate_latent_space_statistics(ls):
     if type(ls) is not np.ndarray:
@@ -141,54 +138,14 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     return (diff.dot(diff) + np.trace(sigma1) +
             np.trace(sigma2) - 2 * tr_covmean)
 
-#Compute fgd from latent space ls and lsn
+#Compute FMD between latent space ls and lsn
 def compute_fgd(ls, lsn):
     mu_ls, sigma_ls = calculate_latent_space_statistics(ls)
     mu_lsn, sigma_lsn = calculate_latent_space_statistics(lsn)
     fid = calculate_frechet_distance(mu_ls, sigma_ls, mu_lsn, sigma_lsn, eps=1e-6)
     return fid, mu_ls, mu_lsn, sigma_ls, sigma_lsn
 
-
-def compute_latent_space(loader, net, variational_encoding, with_noise=False):
-    ''' 
-    with_noise: If set to True, save noise samples into npy file
-    '''
-    #generator.pose_encoder.fc_mu.register_forward_hook(get_activation('latent_space'))
-    for i, (_,vecs) in enumerate(loader,0):
-        target_data = vecs
-        #vecs = vecs.reshape(len(vecs), args.n_poses, -1)
-        _, context_mu, context_logvar, pose_feat, pose_mu, pose_logvar, recon_data = \
-        net(None, None, None, target_data.to(device), variational_encoding=variational_encoding)
-        
-        if i == 0:
-            latent_spaces = pose_feat
-            #noises = noise
-        else:
-            #noises = np.concatenate((noises, noise), axis=0)
-            latent_spaces = torch.cat((latent_spaces, pose_feat), 0)
-        #lsn = forward(i, vecs.to(device), generator, lsn, args.variational_encoding)
-        
-    '''
-    if with_noise:
-        np.savez('noises_one_sample', noises)
-    '''
-        
-    lsn = latent_spaces
-    return lsn  
-
-
-def reparameterize(mu, logvar):
-    std = torch.exp(0.5 * logvar)
-    eps = torch.randn_like(std)
-    return mu + eps * std
-
-def bootstrap_fgd(x):
-    x = (x,)
-    res_std = bootstrap(x, np.std, confidence_level=0.9, random_state = np.random.default_rng(),  method='BCa')
-    res_mean = bootstrap(x, np.mean, confidence_level=0.9, random_state = np.random.default_rng(),  method='BCa')
-    return res_mean, res_std
-
-
+''' Normalization class '''
 class Normalization:
     def get_normalized_all(data):
         #compute min and max on the dataset on all joints
@@ -232,15 +189,7 @@ class Normalization:
             data[..., c] = (data[..., c] - mean[c]) / std[c]
         return data
 
-@dataclass
-#Callback to visualize batch as data
-class CheckBatch(Callback):
-    def __init__(self):
-        super().__init__()
-
-    def before_batch(self):
-        print(self.x.shape, self.x.dtype)
-
+''' Pytorch Dataset '''
 class NormItem(Dataset):
     def __init__(self, vec, mean=None, std=None):
         self.vec = vec
@@ -263,12 +212,3 @@ class NormItem(Dataset):
     def resize(data, size):
         data = torch.permute(data,(2,1,0)).unsqueeze(0)
         return F.interpolate(data, size, mode='bilinear')
-        
-    
-class Hooks:
-    
-    def __init__(self):
-        self.ls = []
-
-    def hook(self, module, input, output):
-        self.ls.append(output)

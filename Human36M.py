@@ -80,8 +80,8 @@ class Human36M(Dataset):
     def __getitem__(self, index):
         poses = self.data[index]
         if not self.all_joints:
-            dir_vec = convert_pose_seq_to_dir_vec(poses)
-            poses = convert_dir_vec_to_pose(dir_vec)
+            dir_vec = convert_pose_seq_to_dir_vec(poses,self.all_joints)
+            poses = convert_dir_vec_to_pose(dir_vec,self.all_joints)
                 
         '''Noise for data augmentation'''
         if self.augment:  # data augmentation by adding gaussian noises on joints coordinates            
@@ -114,7 +114,7 @@ class Human36M(Dataset):
                 poses = poses.copy()
                 poses += self.noise
         
-        dir_vec = convert_pose_seq_to_dir_vec(poses)
+        dir_vec = convert_pose_seq_to_dir_vec(poses, self.all_joints)
 
         dir_vec = dir_vec.reshape(dir_vec.shape[0], -1)
         if self.norm_mean:

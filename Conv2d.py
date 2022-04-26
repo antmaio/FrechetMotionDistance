@@ -10,7 +10,6 @@ from fastai.data.load import *
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F
-#from torch.utils.data import DataLoader
 
 import matplotlib.pyplot as plt 
 import numpy as np 
@@ -18,17 +17,16 @@ from tqdm import tqdm
 
 @call_parse
 def main(
-    model: Param("", str)='gesture_autoencoder',
-    variational_encoding: Param("", bool)=False,
-    mean_dir_vec:Param("", list)=[0.0154009, -0.9690125, -0.0884354, -0.0022264, -0.8655276, 0.4342174, -0.0035145, -0.8755367, -0.4121039, -0.9236511, 0.3061306, -0.0012415, -0.5155854,  0.8129665,  0.0871897, 0.2348464,  0.1846561,  0.8091402,  0.9271948,  0.2960011, -0.013189 ,  0.5233978,  0.8092403,  0.0725451, -0.2037076, 0.1924306,  0.8196916],
-    epochs:Param("", int)=10, 
-    batch_size:Param("" ,int)=128,
-    training:Param("set to true to train the network with ground truth data", bool)=False,
-    n_poses:Param("", int)=34,
-    method:Param("Noise distribution", str)="gaussian_noise",
-    strategy: Param("How to add noise ?", str)="gesture",
+    variational_encoding: Param("Set to True to enable variational encoding", bool)=False,
+    mean_dir_vec:Param("Mean directional vectors", list)=[0.0154009, -0.9690125, -0.0884354, -0.0022264, -0.8655276, 0.4342174, -0.0035145, -0.8755367, -0.4121039, -0.9236511, 0.3061306, -0.0012415, -0.5155854,  0.8129665,  0.0871897, 0.2348464,  0.1846561,  0.8091402,  0.9271948,  0.2960011, -0.013189 ,  0.5233978,  0.8092403,  0.0725451, -0.2037076, 0.1924306,  0.8196916],
+    epochs:Param("Number of training epochs", int)=10, 
+    batch_size:Param("Training batch size" ,int)=128,
+    training:Param("Set to True to train the network with training dataset", bool)=False,
+    n_poses:Param("Motion legnth", int)=34,
+    method:Param("Type of noise", str)="gaussian_noise",
+    strategy: Param("Set to 'gesture' to apply noise on each 34-frames motion. Set to dataset to apply the same noise samples on the whole dataset", str)="gesture",
     norm_image: Param('min max normalize poses', bool)=False,
-    all_joints: Param('Evaluate motion or gesture', bool) = False,
+    all_joints: Param('Set to True to evaluate motion (all body movement). gesture (upper body movement) evaluation otherwise', bool) = False,
     
 ): 
     def get_vecs(dl):
@@ -114,9 +112,6 @@ def main(
         cbs.append(CSVLogger(fname='models/log.csv'))
         learn.fit_one_cycle(epochs,lr_max=suggested_lr, cbs=cbs)
 
-        #learn.recorder.plot_losses()
-        #learn.show_results(dl_idx=1)
-
     else:
 
         """
@@ -148,6 +143,7 @@ def main(
             one_noise_to_all = False
         elif strategy == 'dataset':
             one_noise_to_all = True
+
         
         valid_dataset_ = Human36M(path, mean_dir_vec, n_poses=n_poses, is_train = False, augment=False, norm_mean=False, all_joints=all_joints)
         valid_loader_ = DataLoader(dataset=valid_dataset_, batch_size=batch_size, shuffle=False, drop_last=False)
@@ -216,32 +212,3 @@ def main(
         print(f'fgds with method {method} with n poses = ', n_poses,  fgds.mean(axis=0), fgds.std(axis=0))
         savepth = f'./evaluation/fgd_{n_poses}_{method}_motion' if all_joints else f'./evaluation/fgd_{n_poses}_{method}'
         np.savez_compressed(savepth, mean=np.array(fgds.mean(axis=0)), std=np.array(fgds.std(axis=0)))
-
-
-        #print(torch.cat(latent_space).cpu().detach().numpy().squeeze().shape)
-        #print(latent_space[0].shape)
-        #latent_space = np.array(np.split(np.array(latent_space), len(stds) + 1))
-        #print(latent_space.shape)
-        
-
-            #batch = dls.valid.one_batch()
-            #plt.imshow(batch[0][0].permute(1,2,0))
-            #plt.show()
-            #out = learn.get_preds(1)
-
-            #print(out[0].shape)
-
-    #print(ae)
-    
-
-
-
-    '''
-    train_dataset = Human36M(path, mean_dir_vec, is_train=True, augment=False)
-    val_dataset = Human36M(path, mean_dir_vec, is_train=False, augment=False)
-    #val_dataset_noisy = Human36M(path, mean_dir_vec, is_train=False, augment=False, method=method, std=std)
-
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-    test_loader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-    '''
-
