@@ -2,7 +2,9 @@
 This repository is related to the Fréchet Motion Distance. The FMD measures the distance between the distribution of a ground truth and synthetic motion dataset. It is inspired by the Fréchet Gesture Distance proposed by [1].
 
 ## Requirements
-
+This implementation has been tested with 
+- python 3.7
+- 
 ## Usage
 To train the network with 34-frames motion using pretrained Enocder with Imagenet
 ```
