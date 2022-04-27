@@ -6,7 +6,6 @@ This implementation has been tested with
 - python 3.7
 - fastai 2.5.3
 - pytorch 1.10.1
-- 
 ## Usage
 To train the network with 34-frames motion using pretrained Enocder with Imagenet
 ```
