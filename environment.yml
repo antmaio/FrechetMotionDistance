@@ -104,6 +104,7 @@ dependencies:
   - zstd=1.4.9=h19a0ad4_0
   - pip:
     - absl-py==1.0.0
+    - altair==4.2.0
     - appdirs==1.4.4
     - audioread==2.1.9
     - autocfg==0.0.8
@@ -113,10 +114,12 @@ dependencies:
     - celluloid==0.2.0
     - charset-normalizer==2.0.10
     - click==8.0.3
+    - commonmark==0.9.1
     - confargparse==1.1.20
     - configargparse==1.5.3
     - cycler==0.11.0
     - cymem==2.0.6
+    - dill==0.3.4
     - fastai==2.5.3
     - fastcore==1.3.27
     - fastdownload==0.0.5
@@ -139,6 +142,7 @@ dependencies:
     - librosa==0.8.1
     - llvmlite==0.38.0
     - lmdb==1.3.0
+    - loguru==0.6.0
     - markdown==3.3.6
     - matplotlib==3.5.1
     - more-itertools==8.12.0
@@ -163,6 +167,7 @@ dependencies:
     - requests==2.27.1
     - requests-oauthlib==1.3.1
     - resampy==0.2.2
+    - rich==11.2.0
     - rsa==4.8
     - scikit-image==0.19.1
     - scikit-learn==1.0.2
@@ -181,11 +186,14 @@ dependencies:
     - thinc==8.0.13
     - threadpoolctl==3.0.0
     - tifffile==2021.11.2
+    - toolz==0.11.2
+    - torch-snippets==0.473
     - tqdm==4.62.3
     - typer==0.4.0
     - umap==0.1.1
     - urllib3==1.26.8
     - wasabi==0.9.0
     - werkzeug==2.0.2
+    - win32-setctime==1.1.0
     - yacs==0.1.8
 prefix: C:\Users\antoi\anaconda3\envs\fid
