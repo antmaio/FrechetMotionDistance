@@ -1,5 +1,5 @@
 # Evaluating the Quality of a Synthesized Motion with the Fréchet Motion Distance
-This repository is related to the Fréchet Motion Distance. The FMD measures the distance between the distribution of a ground truth and synthetic motion dataset. It is inspired by the Fréchet Gesture Distance proposed by [1]. The autoencoder model is inspired form [here](https://alanbertl.com/autoencoder-with-fast-ai/).
+This repository is related to the Fréchet Motion Distance and is related to [1]. This work has been presented at the poster session at SIGRAPPH 2022. The FMD measures the distance between the distribution of a ground truth and synthetic motion dataset. It is inspired by the Fréchet Gesture Distance proposed by [2]. The autoencoder model is inspired form [here](https://alanbertl.com/autoencoder-with-fast-ai/).
 
 ## Requirements
 This implementation has been tested with 
@@ -17,6 +17,20 @@ python Conv2d.py --norm_image --n_poses 34 --all_joints
 ```
 ## References
 [1]
+```
+@misc{https://doi.org/10.48550/arxiv.2204.12318,
+  doi = {10.48550/ARXIV.2204.12318},
+  url = {https://arxiv.org/abs/2204.12318},
+  author = {Maiorca, Antoine and Yoon, Youngwoo and Dutoit, Thierry},
+  keywords = {Computer Vision and Pattern Recognition (cs.CV), FOS: Computer and information sciences, FOS: Computer and information sciences},
+  title = {Evaluating the Quality of a Synthesized Motion with the Fréchet Motion Distance},
+  publisher = {arXiv},
+  year = {2022},
+  copyright = {Creative Commons Attribution 4.0 International}
+}
+
+```
+[2]
 ```
 @article{Yoon2020Speech,
   title={Speech Gesture Generation from the Trimodal Context of Text, Audio, and Speaker Identity},
