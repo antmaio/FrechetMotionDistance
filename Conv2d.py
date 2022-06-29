@@ -21,7 +21,7 @@ def main(
     mean_dir_vec:Param("Mean directional vectors", list)=[0.0154009, -0.9690125, -0.0884354, -0.0022264, -0.8655276, 0.4342174, -0.0035145, -0.8755367, -0.4121039, -0.9236511, 0.3061306, -0.0012415, -0.5155854,  0.8129665,  0.0871897, 0.2348464,  0.1846561,  0.8091402,  0.9271948,  0.2960011, -0.013189 ,  0.5233978,  0.8092403,  0.0725451, -0.2037076, 0.1924306,  0.8196916],
     epochs:Param("Number of training epochs", int)=10, 
     batch_size:Param("Training batch size" ,int)=128,
-    training:Param("Set to True to train the network with training dataset", bool)=False,
+    training:Param("Set to True to train the network with training dataset", bool)=True,
     n_poses:Param("Motion legnth", int)=34,
     method:Param("Type of noise", str)="gaussian_noise",
     strategy: Param("Set to 'gesture' to apply noise on each 34-frames motion. Set to dataset to apply the same noise samples on the whole dataset", str)="gesture",
@@ -108,6 +108,7 @@ def main(
             savepth = f'model{n_poses}_motion'
         else:
             savepth = f'model{n_poses}'
+
         cbs.append(SaveModelCallback(fname=savepth))
         cbs.append(CSVLogger(fname='models/log.csv'))
         learn.fit_one_cycle(epochs,lr_max=suggested_lr, cbs=cbs)
@@ -172,7 +173,7 @@ def main(
         handle.remove()
         latent_space = torch.cat(latent_space).detach().cpu().numpy().squeeze()
         
-        n = len(valid_dataset) if one_noise_to_all else 100
+        n = len(valid_dataset) if one_noise_to_all else 2
 
         fgds = np.empty((n, len(stds)))
 
@@ -210,5 +211,5 @@ def main(
                 fgds[k,i] = fgd[0]
         
         print(f'fgds with method {method} with n poses = ', n_poses,  fgds.mean(axis=0), fgds.std(axis=0))
-        savepth = f'./evaluation/fgd_{n_poses}_{method}_motion' if all_joints else f'./evaluation/fgd_{n_poses}_{method}'
-        np.savez_compressed(savepth, mean=np.array(fgds.mean(axis=0)), std=np.array(fgds.std(axis=0)))
+        #savepth = f'./evaluation/fgd_{n_poses}_{method}_motion' if all_joints else f'./evaluation/fgd_{n_poses}_{method}'
+        #np.savez_compressed(savepth, mean=np.array(fgds.mean(axis=0)), std=np.array(fgds.std(axis=0)))
