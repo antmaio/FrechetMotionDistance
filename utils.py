@@ -191,16 +191,22 @@ class Normalization:
 
 ''' Pytorch Dataset '''
 class NormItem(Dataset):
-    def __init__(self, vec, mean=None, std=None):
+    def __init__(self, vec, mean=None, std=None, reorg=False):
         self.vec = vec
         self.mean = torch.tensor(mean).float() if mean is not None else None
         self.std = torch.tensor(std).float() if std is not None else None
+
+        self.reorg = reorg
+        if self.reorg:
+            self.reorg_idx = np.array([0,4,5,4,1,6,7,10,11,12,11,10,8,9,8,13,14,15,14,13,7,6,0,2,3,2])
 
     def __len__(self):
         return len(self.vec)
 
     def __getitem__(self, i):
-        resized_data = self.resize(self.vec[i], (28,28)).squeeze()
+
+        v = self.vec[i][:, self.reorg_idx] if self.reorg else self.vec[i]
+        resized_data = self.resize(v, (28,28)).squeeze()
         if self.mean is not None:
             in_data = (resized_data - self.mean[:, None, None]) / self.std[:, None, None]
         else:

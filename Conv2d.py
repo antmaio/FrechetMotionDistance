@@ -27,6 +27,7 @@ def main(
     strategy: Param("Set to 'gesture' to apply noise on each 34-frames motion. Set to dataset to apply the same noise samples on the whole dataset", str)="gesture",
     norm_image: Param('min max normalize poses', bool)=False,
     all_joints: Param('Set to True to evaluate motion (all body movement). gesture (upper body movement) evaluation otherwise', bool) = False,
+    reorg: Param('Set to True for the directional vectors reordering to create motion-based image', bool)=True
     
 ): 
     def get_vecs(dl):
@@ -48,7 +49,10 @@ def main(
     add_layer(ae, 64, 32, 'Upsample2')
     add_layer(ae, 32, 3, 'Upsample3', act='sig')
     if not training:
-        loadpth = f'./models/model{n_poses}_motion.pth' if all_joints else f'./models/model{n_poses}.pth'
+        loadpth = f'./models/model{n_poses}'
+        loadpth = loadpth + '_motion' if all_joints else loadpth
+        loadpth = loadpth + '_reorg' if reorg else loadpth
+        loadpth = loadpth + '.pth'
         ae.load_state_dict(torch.load(loadpth))
 
 
@@ -92,8 +96,8 @@ def main(
         train_vecs, valid_vecs = (train_vecs - bounds['min']) / (bounds['max'] - bounds['min']), (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
 
         #Create new dataset and dataloaders
-        train_dataset = NormItem(train_vecs, norm_mean, norm_std) if norm_image else NormItem(train_vecs)
-        valid_dataset = NormItem(valid_vecs, norm_mean, norm_std) if norm_image else NormItem(valid_vecs)
+        train_dataset = NormItem(train_vecs, norm_mean, norm_std, reorg) if norm_image else NormItem(train_vecs)
+        valid_dataset = NormItem(valid_vecs, norm_mean, norm_std, reorg) if norm_image else NormItem(valid_vecs)
         train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
         valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
         dls = DataLoaders(train_loader, valid_loader) 
@@ -104,11 +108,9 @@ def main(
         print('Training with suggested lr = ', suggested_lr)
         print('Validation loss before fit : ', learn.validate()[0])
         cbs = []
-        if all_joints:
-            savepth = f'model{n_poses}_motion'
-        else:
-            savepth = f'model{n_poses}'
-
+        savepth = f'model{n_poses}'
+        savepth = savepth + '_motion' if all_joints else savepth
+        savepth = savepth + '_reorg' if reorg else savepth
         cbs.append(SaveModelCallback(fname=savepth))
         cbs.append(CSVLogger(fname='models/log.csv'))
         learn.fit_one_cycle(epochs,lr_max=suggested_lr, cbs=cbs)
@@ -162,7 +164,7 @@ def main(
         valid_vecs = (valid_vecs - bounds['min']) / (bounds['max'] - bounds['min'])
         
         #Create new dataset and dataloaders with normalized data
-        valid_dataset = NormItem(valid_vecs, norm_mean, norm_std) if norm_image else NormItem(valid_vecs)
+        valid_dataset = NormItem(valid_vecs, norm_mean, norm_std, reorg) if norm_image else NormItem(valid_vecs)
         valid_loader = DataLoader(dataset=valid_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
         dls = DataLoaders(None, valid_loader)
     
@@ -191,7 +193,7 @@ def main(
                 valid_vecs_noisy = valid_vecs_noisy.reshape(len(valid_dataset_), n_poses, n_joints, 3)
                 valid_vecs_noisy = (valid_vecs_noisy - bounds['min']) / (bounds['max'] - bounds['min'])
 
-                valid_dataset_noisy = NormItem(valid_vecs_noisy, norm_mean, norm_std) if norm_image else NormItem(valid_vecs_noisy)
+                valid_dataset_noisy = NormItem(valid_vecs_noisy, norm_mean, norm_std, reorg) if norm_image else NormItem(valid_vecs_noisy)
                 valid_loader_noisy = DataLoader(dataset=valid_dataset_noisy, batch_size=batch_size, shuffle=False, drop_last=True)
                 
                 #Need only the valid dataset but I am not sure if we can use only valid dataset on fastai
