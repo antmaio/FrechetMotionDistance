@@ -22,8 +22,8 @@ def main(
     epochs:Param("Number of training epochs", int)=10, 
     batch_size:Param("Training batch size" ,int)=128,
     training:Param("Set to True to train the network with training dataset", bool)=True,
-    n_poses:Param("Motion legnth", int)=34,
-    method:Param("Type of noise", str)="gaussian_noise",
+    n_poses:Param("Motion legnth", int)=28,
+    method:Param("Type of noise", str)="temporal_noise",
     strategy: Param("Set to 'gesture' to apply noise on each 34-frames motion. Set to dataset to apply the same noise samples on the whole dataset", str)="gesture",
     norm_image: Param('min max normalize poses', bool)=False,
     all_joints: Param('Set to True to evaluate motion (all body movement). gesture (upper body movement) evaluation otherwise', bool) = False,
@@ -132,12 +132,12 @@ def main(
         #noise intensity
         if method == 'gaussian_noise':
             stds = [0.001 ** 0.5, 0.002 ** 0.5, 0.003 ** 0.5, 0.01 ** 0.5, 0.1 ** 0.5]
-        elif method == 'saltandpepper_noise':
+        elif method == 'saltandpepper_noise': 
             stds = [0.1, 0.15, 0.2, 0.5, 0.75]
         elif method == 'temporal_noise':
             if n_poses == 18:
                 stds = [1,5,10,15]
-            elif n_poses == 34:
+            elif (n_poses == 34) or (n_poses==28):
                 stds = [1,5,10,15]
             elif n_poses == 64:
                 stds = [1,5,10,15,32]
@@ -175,7 +175,7 @@ def main(
         handle.remove()
         latent_space = torch.cat(latent_space).detach().cpu().numpy().squeeze()
         
-        n = len(valid_dataset) if one_noise_to_all else 2
+        n = len(valid_dataset) if one_noise_to_all else 10
 
         fgds = np.empty((n, len(stds)))
 
