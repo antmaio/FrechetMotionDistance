@@ -6,9 +6,11 @@ from torch.utils.data import Dataset
 import torch.nn.functional as F
 import torch
 
-def get_dir_vec_pairs(is_motion):
-    if not is_motion:
-        #ted gesture
+def get_dir_vec_pairs(dataset, val=None):
+    
+    norm_bones = val if val is not None else None
+    #ted gesture
+    if dataset == 'ted':
         dir_vec_pairs = [(0, 1, 0.26),
                     (1, 2, 0.18), 
                     (2, 3, 0.14), 
@@ -18,13 +20,14 @@ def get_dir_vec_pairs(is_motion):
                     (1, 7, 0.22), 
                     (7, 8, 0.36), 
                     (8, 9, 0.33)]  # adjacency and bone length
-    else:
-        #human36m motion
+    
+    #human36m motion  
+    elif dataset == 'h36m':     
         dir_vec_pairs = [(0, 1, 0.136),
             (0, 4, 0.136), 
             (1, 2, 0.449), 
             (2, 3, 0.438), 
-            (4, 5, 0.449)  ,
+            (4, 5, 0.449),
             (5, 6, 0.438), 
             (0, 7, 0.226),
             (7, 8, 0.255), 
@@ -36,8 +39,49 @@ def get_dir_vec_pairs(is_motion):
             (8, 14, 0.139),
             (14, 15, 0.275),
             (15, 16, 0.247)]  # adjacency and bone length
-
+        
+    #Dog Locomotion    
+    elif dataset=='dog':
+        if val is not None:
+            dir_vec_pairs = [
+             #Hips->Tail
+             (0,1,norm_bones[0]),
+             (1,2,norm_bones[1]),
+             (2,3,norm_bones[2]),
+             #Hips->RightLeg
+             (0,4,norm_bones[3]),
+             (4,5,norm_bones[4]),
+             (5,6,norm_bones[5]),
+             (6,7,norm_bones[6]),
+             #Hips->LeftLeg 
+             (0,8,norm_bones[7]),
+             (8,9,norm_bones[8]),
+             (9,10,norm_bones[9]),
+             (10,11,norm_bones[10]),
+             #Hips->Spine
+             (0,12,norm_bones[11]),
+             (12,13,norm_bones[12]),
+             #Spine->RightHand
+             (13,14,norm_bones[13]),
+             (14,15,norm_bones[14]),
+             (15,16,norm_bones[15]),
+             (16,17,norm_bones[16]),
+             (17,18,norm_bones[17]),
+             #Spine->LeftHand
+             (13,19,norm_bones[18]),
+             (19,20,norm_bones[19]),
+             (20,21,norm_bones[20]),
+             (21,22,norm_bones[21]),
+             (22,23,norm_bones[22]),
+             #Spine->Head
+             (13,24,norm_bones[23]),
+             (24,25,norm_bones[24]),
+             (25,26,norm_bones[25])
+        ]
+        
     return dir_vec_pairs
+
+
 
 def get_mean_dir_vec(is_motion, dataset=None):
     if dataset == 'h36m' or dataset == None:
@@ -58,9 +102,32 @@ def get_mean_dir_vec(is_motion, dataset=None):
     
     return mean_dir_vec
     
-def convert_dir_vec_to_pose(vec, is_motion):
+def convert_pose_seq_to_dir_vec(pose, dataset, val=None):
 
-    dir_vec_pairs = get_dir_vec_pairs(is_motion)
+    dir_vec_pairs = get_dir_vec_pairs(dataset, val)
+    if pose.shape[-1] != 3:
+        pose = pose.reshape(pose.shape[:-1] + (-1, 3))
+
+    if len(pose.shape) == 3:
+        dir_vec = np.zeros((pose.shape[0], len(dir_vec_pairs), 3))
+        for i, pair in enumerate(dir_vec_pairs):
+            dir_vec[:, i] = pose[:, pair[1]] - pose[:, pair[0]]
+            dir_vec[:, i, :] = normalize(dir_vec[:, i, :], axis=1)  # to unit length
+    elif len(pose.shape) == 4:  # (batch, seq, ...)
+        dir_vec = np.zeros((pose.shape[0], pose.shape[1], len(dir_vec_pairs), 3))
+        for i, pair in enumerate(dir_vec_pairs):
+            dir_vec[:, :, i] = pose[:, :, pair[1]] - pose[:, :, pair[0]]
+        for j in range(dir_vec.shape[0]):  # batch
+            for i in range(len(dir_vec_pairs)):
+                dir_vec[j, :, i, :] = normalize(dir_vec[j, :, i, :], axis=1)  # to unit length
+    else:
+        assert False
+
+    return dir_vec
+
+def convert_dir_vec_to_pose(vec, dataset, val=None):
+
+    dir_vec_pairs = get_dir_vec_pairs(dataset, val)
     vec = np.array(vec)
 
     if vec.shape[-1] != 3:
@@ -83,31 +150,8 @@ def convert_dir_vec_to_pose(vec, is_motion):
             joint_pos[:, :, pair[1]] = joint_pos[:, :, pair[0]] + pair[2] * vec[:, :, j]
     else:
         assert False
-
+    
     return joint_pos
-
-def convert_pose_seq_to_dir_vec(pose, is_motion):
-
-    dir_vec_pairs = get_dir_vec_pairs(is_motion)
-    if pose.shape[-1] != 3:
-        pose = pose.reshape(pose.shape[:-1] + (-1, 3))
-
-    if len(pose.shape) == 3:
-        dir_vec = np.zeros((pose.shape[0], len(dir_vec_pairs), 3))
-        for i, pair in enumerate(dir_vec_pairs):
-            dir_vec[:, i] = pose[:, pair[1]] - pose[:, pair[0]]
-            dir_vec[:, i, :] = normalize(dir_vec[:, i, :], axis=1)  # to unit length
-    elif len(pose.shape) == 4:  # (batch, seq, ...)
-        dir_vec = np.zeros((pose.shape[0], pose.shape[1], len(dir_vec_pairs), 3))
-        for i, pair in enumerate(dir_vec_pairs):
-            dir_vec[:, :, i] = pose[:, :, pair[1]] - pose[:, :, pair[0]]
-        for j in range(dir_vec.shape[0]):  # batch
-            for i in range(len(dir_vec_pairs)):
-                dir_vec[j, :, i, :] = normalize(dir_vec[j, :, i, :], axis=1)  # to unit length
-    else:
-        assert False
-
-    return dir_vec
 
 ''' 
 Fréchet distance computation

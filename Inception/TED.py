@@ -3,46 +3,31 @@ import random
 import matplotlib.pyplot as plt
 import math 
 from sklearn.decomposition import PCA
-
 import torch
-from torch.utils.data import Dataset
 
 from utils import *
 
 class TED(Dataset):
-
-    def __init__(self, path, mean_data, norm_mean_dir_vec, to_image, method=None, std=None) -> None:
-        super().__init__()
-        
+    def __init__(self, path, method=None, std=None):
         self.path = path
-        self.mean_data = mean_data
-        self.norm_mean_dir_vec = norm_mean_dir_vec
-        self.to_image = to_image
         self.method = method
         self.std = std
-
+    
         self.dir_vec = np.load(self.path)['dir_vec']
-        self.dir_vec = torch.tensor(self.dir_vec - self.mean_data, dtype=torch.float32) if self.norm_mean_dir_vec else torch.tensor(self.dir_vec, dtype=torch.float32)
         self.poses = np.load(self.path)['poses']
-
-        if self.to_image:
-            #min max rescale
-            self.bounds = Normalization.get_bound_all(self.dir_vec)
-
-        #Imagenet normalization stats
-        self.mean_imagenet = torch.tensor(np.array([0.485,0.456,0.406])).float()
-        self.std_imagenet = torch.tensor(np.array([0.229, 0.224, 0.225])).float()
-
+        
+        self.bound = {}
+        self.bound['max'] = torch.tensor((self.dir_vec[..., 0].max(), self.dir_vec[..., 1].max(), self.dir_vec[..., 2].max()))
+        self.bound['min'] = torch.tensor((self.dir_vec[..., 0].min(), self.dir_vec[..., 1].min(), self.dir_vec[..., 2].min()))
+        
         if self.method == 'pca_noise':
-            poses_for_pca = self.poses.reshape(len(self.poses) * self.poses.shape[1] , self.poses.shape[2], self.poses.shape[-1])
+            poses_for_pca = self.poses.reshape(len(self.poses)*self.poses.shape[1], self.poses.shape[2], self.poses.shape[-1])
             self.pca_func = PCA().fit(poses_for_pca.reshape(len(poses_for_pca), -1))
-            #import pdb; pdb.set_trace()
-
+            
     def __len__(self):
         return len(self.dir_vec)
-
+    
     def __getitem__(self, i):
- 
         motion = self.poses[i]
         
         #Adding noise to motion
@@ -58,8 +43,8 @@ class TED(Dataset):
                     #pca2p
                     motion = self.pca_func.inverse_transform(poses_pca_n)
                     motion = motion.reshape(len(motion), -1 ,3)
-
-                elif len(noise_function(motion, self.std))== 2: #temporal noise
+                    
+                elif len(noise_function(motion, self.std)) == 2: #temporal noise
                     self.noise, r = noise_function(motion, self.std)
                     motion = motion.copy()
                     motion[r:r+self.std] += self.noise
@@ -70,28 +55,16 @@ class TED(Dataset):
                     motion += self.noise
             else:
                 raise NotImplementedError
-
-            dv  = convert_pose_seq_to_dir_vec(motion,is_motion=False)
-            #if not image normalization, apply mean dir vec substraction
-            norm_v = torch.tensor(dv - self.mean_data) if not self.to_image else torch.tensor(dv)
-    
-        #No noise apply to data (already normalized dir vec)
-        else:
-            norm_v = self.dir_vec[i]
         
-        #Image transformation
-        if self.to_image:
-            #MinMax rescaling
-            dv = (norm_v - self.bounds['min']) / (self.bounds['max'] - self.bounds['min'])
-            v = torch.permute(dv, (2,1,0))
-            #normalize with imagenet when using pretrained model
-            norm_v = torch.tensor((v - self.mean_imagenet[:,None,None]) / self.std_imagenet[:,None,None], dtype=torch.float32)
-
-        return norm_v
-
-    def normalize(self):
-        pass
-
+        dv = convert_pose_seq_to_dir_vec(motion, 'ted')
+        dv = torch.tensor(dv, dtype=torch.float32)
+        
+        #MinMax rescaling [-1,1]->[0,1]
+        self.minmax_dir_vec = (dv - self.bound['min']) / (self.bound['max'] - self.bound['min'])
+        self.minmax_dir_vec = torch.permute(self.minmax_dir_vec, (2, 1, 0))
+        
+        return torch.from_numpy(motion).float(), torch.tensor(self.minmax_dir_vec, dtype=torch.float32)
+    
     @staticmethod
     def saltandpepper_noise(data, std):
         u = np.random.uniform(size=data[0].shape) #Applying the same noise on every frame to avoid discontinuities
@@ -113,12 +86,19 @@ class TED(Dataset):
         noise = np.random.normal(0, 0.003 ** 0.5, data[0].shape)
         return noise, r
     
+    @staticmethod
+    def temporalV2_noise(data, std):
+        list_index = np.arange(0, data.shape[0])
+        list_r = []
+        for _ in range(std):
+            r = np.array(random.choice(list_index))
+            list_index = np.setdiff1d(list_index, r)
+            list_r.append(r)
+        noise=np.zeros(data.shape)
+        for it in range(len(list_r)):
+            noise[list_r[it]] = np.random.normal(0,0.003**0.5, data[0].shape)
+        return noise
+
+    @staticmethod
     def pca_noise(self, data, std):
-        
-        data = data.copy()
-        #p2pca
-        poses_pca = self.pca_func.transform(data.reshape(len(data), -1))
-        poses_pca_n = poses_pca * self.std
-        #pca2p
-        poses = self.pca_func.inverse_transform(poses_pca_n)
-        return poses.reshape(len(poses), -1 ,3)
+        pass

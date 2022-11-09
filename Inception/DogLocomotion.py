@@ -108,18 +108,19 @@ class DogLocomotion(Dataset):
             
             #stats for MinMax rescaling
             self.bound = {}
-            self.bound['max'] = torch.tensor((self.dir_vec[..., 0].max(), self.dir_vec[..., 1].max(), self.dir_vec[..., 2].max())) 
+            self.bound['max'] = torch.tensor((self.dir_vec[..., 0].max(), self.dir_vec[..., 1].max(), self.dir_vec[..., 2].max()))
             self.bound['min'] = torch.tensor((self.dir_vec[..., 0].min(), self.dir_vec[..., 1].min(), self.dir_vec[..., 2].min()))
             
             minmax_dir_vec = (torch.tensor(self.dir_vec) - self.bound['min']) / (self.bound['max'] - self.bound['min'])
             
+            '''
             self.mean = []
             self.std = []
             
             for c in range(3):
                 self.mean.append(minmax_dir_vec[...,c].mean())
                 self.std.append(minmax_dir_vec[...,c].std())
-            
+            '''
             
     def __len__(self):
         return len(self.dir_vec) 
@@ -136,7 +137,7 @@ class DogLocomotion(Dataset):
                 if self.method == 'pca_noise':
                     motion = motion.copy()
                     #p2pca
-                    import pdb; pdb.set_trace()
+                    #import pdb; pdb.set_trace()
                     poses_pca = self.pca_func.transform(motion.reshape(len(motion), -1))
                     poses_pca_n = poses_pca * self.std
                     #pca2p
@@ -165,15 +166,17 @@ class DogLocomotion(Dataset):
             minmax_dir_vec = (torch.tensor(dir_vec) - self.bound['min']) / (self.bound['max'] - self.bound['min'])
             
             #zscore by channel
+            '''
             x_ch0 = (minmax_dir_vec[...,0] - self.mean[0]) / self.std[0]
             x_ch1 = (minmax_dir_vec[...,1] - self.mean[1]) / self.std[1]
             x_ch2 = (minmax_dir_vec[...,2] - self.mean[2]) / self.std[2]
             
             zdv = torch.cat((x_ch0.unsqueeze(-1), x_ch1.unsqueeze(-1), x_ch2.unsqueeze(-1)), -1)
-            self.zdv = torch.tensor(zdv, dtype=torch.float32)
-            self.norm_v = torch.permute(zdv, (2,1,0))
+            '''
+            self.zdv = torch.tensor(minmax_dir_vec, dtype=torch.float32)
+            self.norm_v = torch.permute(self.zdv, (2,1,0))
             
-        return self.norm_v
+        return torch.from_numpy(motion).float(), torch.tensor(self.norm_v, dtype=torch.float32)
     
     @staticmethod
     def saltandpepper_noise(data, std):
@@ -197,6 +200,6 @@ class DogLocomotion(Dataset):
         return noise, r
 
     @staticmethod
-    def pca_noise():
+    def pca_noise(data, std):
         pass
     
