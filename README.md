@@ -15,6 +15,10 @@ To evaluate, just remove the training flag
 ```
 python Conv2d.py --norm_image --n_poses 34 --all_joints
 ```
+You need to navigate into Inception folder to evaluate your motion dataset with InceptionV3 architecture. Run the following command to measure FMD on the given dataset polluted by the defined noise (--method and --std)
+```
+python inception_fmd.py --batch_size 512 --dataset h36m --method gaussian_noise --std 0.003
+```
 ## References
 [1]
 ```
