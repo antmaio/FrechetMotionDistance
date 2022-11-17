@@ -60,8 +60,8 @@ class TED(Dataset):
         dv = torch.tensor(dv, dtype=torch.float32)
         
         #MinMax rescaling [-1,1]->[0,1]
-        self.minmax_dir_vec = (dv - self.bound['min']) / (self.bound['max'] - self.bound['min'])
-        self.minmax_dir_vec = torch.permute(self.minmax_dir_vec, (2, 1, 0))
+        #self.minmax_dir_vec = (dv - self.bound['min']) / (self.bound['max'] - self.bound['min'])
+        self.minmax_dir_vec = torch.permute(dv, (2, 1, 0))
         
         return torch.from_numpy(motion).float(), torch.tensor(self.minmax_dir_vec, dtype=torch.float32)
     

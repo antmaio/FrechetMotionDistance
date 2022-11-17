@@ -102,18 +102,19 @@ class Human36M(Dataset):
         
         dir_vec = convert_pose_seq_to_dir_vec(motion, 'h36m')
         
+        '''
         #MinMax rescaling [-1,1]->[0,1]
         minmax_dir_vec = (torch.tensor(dir_vec) - self.bound['min']) / (self.bound['max'] - self.bound['min'])
         
         #zscore by channel
-        '''
+        
         x_ch0 = (minmax_dir_vec[...,0] - self.mean_norm[0]) / self.std_norm[0]
         x_ch1 = (minmax_dir_vec[...,1] - self.mean_norm[1]) / self.std_norm[1]
         x_ch2 = (minmax_dir_vec[...,2] - self.mean_norm[2]) / self.std_norm[2]
                     
         zdv = torch.cat((x_ch0.unsqueeze(-1), x_ch1.unsqueeze(-1), x_ch2.unsqueeze(-1)), -1)
         '''
-        self.zdv = torch.tensor(minmax_dir_vec, dtype=torch.float32)
+        self.zdv = torch.tensor(dir_vec, dtype=torch.float32)
         self.norm_v = torch.permute(self.zdv, (2,1,0))
         
         return torch.from_numpy(motion).float(), self.norm_v

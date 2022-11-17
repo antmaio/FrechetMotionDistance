@@ -162,18 +162,19 @@ class DogLocomotion(Dataset):
         dir_vec = self.dir_vec[i] if self.method is None else convert_pose_seq_to_dir_vec(motion, 'dog', val=self.norm_bones) 
 
         if self.to_image:
+            '''
             #MinMax rescaling [-1, 1] -> [0, 1]
             minmax_dir_vec = (torch.tensor(dir_vec) - self.bound['min']) / (self.bound['max'] - self.bound['min'])
             
             #zscore by channel
-            '''
+            
             x_ch0 = (minmax_dir_vec[...,0] - self.mean[0]) / self.std[0]
             x_ch1 = (minmax_dir_vec[...,1] - self.mean[1]) / self.std[1]
             x_ch2 = (minmax_dir_vec[...,2] - self.mean[2]) / self.std[2]
             
             zdv = torch.cat((x_ch0.unsqueeze(-1), x_ch1.unsqueeze(-1), x_ch2.unsqueeze(-1)), -1)
             '''
-            self.zdv = torch.tensor(minmax_dir_vec, dtype=torch.float32)
+            self.zdv = torch.tensor(dir_vec, dtype=torch.float32)
             self.norm_v = torch.permute(self.zdv, (2,1,0))
             
         return torch.from_numpy(motion).float(), torch.tensor(self.norm_v, dtype=torch.float32)
