@@ -1,6 +1,7 @@
 import math
 import random
 import numpy as np 
+import einops
 
 import torch
 
@@ -10,7 +11,7 @@ from sklearn.preprocessing import normalize
 from utils import *
 
 class Human36M(Dataset):
-    def __init__(self, path, n_poses=34, method=None, std=None, dataset='test'):
+    def __init__(self, path, n_poses=34, method=None, std=None, dataset='test', joint_reord=True):
         #Init
         frame_stride = 2
         target_joints = [0, 1, 2, 3, 6, 7, 8, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]
@@ -19,7 +20,10 @@ class Human36M(Dataset):
         self.method=method
         self.std = std
         self.dataset=dataset #['all', 'train', 'test']
-        
+        self.joint_reord = joint_reord
+
+        if self.joint_reord:
+            self.joint_ord = [9,13,14,15,14,13,8,7,6,0,2,3,2,0,1,4,5,4,1,6,7,8,10,11,12,11,10,9]
         if self.dataset == 'train':
             subjects = ['S1', 'S5', 'S6', 'S7', 'S8', 'S9']
         elif self.dataset == 'test':
@@ -102,6 +106,15 @@ class Human36M(Dataset):
         
         dir_vec = convert_pose_seq_to_dir_vec(motion, 'h36m')
         
+
+        if self.joint_reord:
+            dir_vec=dir_vec[:,self.joint_ord]
+        
+        #34,16,3 -> 34,299,3 
+        dir_vec_ = einops.repeat(dir_vec, 'f j d -> f (repeat j) d', repeat = 299//dir_vec.shape[1])
+        dir_vec = torch.cat((torch.from_numpy(dir_vec_).float(), torch.from_numpy(dir_vec).float()), dim=1)
+        dir_vec = dir_vec[:,:299]
+        
         '''
         #MinMax rescaling [-1,1]->[0,1]
         minmax_dir_vec = (torch.tensor(dir_vec) - self.bound['min']) / (self.bound['max'] - self.bound['min'])
@@ -114,9 +127,11 @@ class Human36M(Dataset):
                     
         zdv = torch.cat((x_ch0.unsqueeze(-1), x_ch1.unsqueeze(-1), x_ch2.unsqueeze(-1)), -1)
         '''
+        
         self.zdv = torch.tensor(dir_vec, dtype=torch.float32)
         self.norm_v = torch.permute(self.zdv, (2,1,0))
         
+
         return torch.from_numpy(motion).float(), self.norm_v
     
     @staticmethod

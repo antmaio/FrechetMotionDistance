@@ -1,4 +1,5 @@
 
+from numpy import isin
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -39,24 +40,14 @@ class InceptionV3(nn.Module):
         self.blocks = nn.ModuleList()
 
         inception = models.inception_v3(pretrained=pretrained)
-
-        # initialize
-        for m in inception.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
-                # trunc normal
-                # stddev = float(m.stddev) if hasattr(m, 'stddev') else 0.1  # type: ignore
-                # torch.nn.init.trunc_normal_(m.weight, mean=0.0, std=stddev, a=-2, b=2)
-
-                # constant
-                # nn.init.constant_(m.weight, 0.001)
-                # if hasattr(m, 'bias') and m.bias is not None:
-                #     nn.init.constant_(m.bias, 0)
-
-                # kaiming
-                nn.init.kaiming_uniform(m.weight)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+        if not pretrained:
+            #kaiming uniform initialization instead of trunc normal
+            for m in inception.modules():
+                if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                    nn.init.kaiming_uniform(m.weight)
+                elif isinstance(m, nn.BatchNorm2d):
+                    nn.init.constant_(m.weight, 1)
+                    nn.init.constant_(m.bias, 0)
 
         # Block 0: input to maxpool1
         block0 = [
