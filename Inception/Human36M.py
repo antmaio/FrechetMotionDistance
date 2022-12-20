@@ -11,7 +11,7 @@ from sklearn.preprocessing import normalize
 from utils import *
 
 class Human36M(Dataset):
-    def __init__(self, path, n_poses=34, method=None, std=None, dataset='test', joint_reord=True):
+    def __init__(self, path, n_poses=34, method=None, std=None, dataset='test', joint_reord=False):
         #Init
         frame_stride = 2
         target_joints = [0, 1, 2, 3, 6, 7, 8, 12, 13, 14, 15, 17, 18, 19, 25, 26, 27]
